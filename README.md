@@ -22,8 +22,8 @@ S3  →  Lambda  →  AWS Batch (Python)  →  Athena
 | Step | Service | Status | Focus |
 |------|---------|--------|-------|
 | 0 | — | ✅ Done | [Understanding Constructs & Why They Have Levels](docs/01-cdk-constructs-and-levels.md) |
-| 1 | S3 | 🔜 Next | Foundational L2 usage: buckets, encryption, lifecycle rules |
-| 2 | Lambda | ⏳ Planned | Event-driven processing triggered from S3 |
+| 1 | S3 | ✅ Done | [Foundational L2 usage, verified with cdk-nag](docs/02-s3-foundations.md) |
+| 2 | Lambda | 🔜 Next | Event-driven processing triggered from S3 |
 | 3 | AWS Batch | ⏳ Planned | Heavier processing via a Python job, defined with CDK/TypeScript |
 | 4 | Athena | ⏳ Planned | Querying pipeline output via Glue Data Catalog + Athena |
 
@@ -38,48 +38,61 @@ S3  →  Lambda  →  AWS Batch (Python)  →  Athena
 
 ## Security & Compliance: cdk-nag
 
-Every stack introduced in this series is validated with **cdk-nag** — a set
-of CDK Aspects that run the [AWS Solutions](https://github.com/cdklabs/cdk-nag/blob/main/RULES.md)
-rule pack (and optionally HIPAA, NIST 800-53, or PCI-DSS packs) against the
-synthesized CloudFormation template, flagging violations such as
-unencrypted buckets, overly permissive IAM policies, or missing access
-logging *before* the stack is ever deployed.
+Every stack in this repo is validated with **cdk-nag** — a set of rule
+packs (this project uses [AWS Solutions](https://github.com/cdklabs/cdk-nag/blob/main/RULES.md))
+that check the construct tree for violations such as unencrypted buckets,
+overly permissive IAM policies, or missing access logging *before* the
+stack is ever deployed.
 
-The rule pack is wired into the CDK app's entry point once it exists
-(Step 1), applied at the `App` level so it automatically covers every
-future stack in the pipeline:
+It's registered once, at the `App` level in [`bin/app.ts`](bin/app.ts), via
+CDK's native `Validations` API (the cdk-nag 3.x way — see
+[the Step 1 article](docs/02-s3-foundations.md#the-api-changed-under-our-feet-cdk-nag-3x)
+for what changed from the older `Aspects`-based pattern):
 
 ```ts
-import { App, Aspects } from 'aws-cdk-lib';
+import { Validations } from 'aws-cdk-lib/core';
 import { AwsSolutionsChecks } from 'cdk-nag';
 
-const app = new App();
-Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+Validations.of(app).addPlugins(new AwsSolutionsChecks(app, { verbose: true }));
 ```
 
 Any violation that is a deliberate, documented trade-off (rather than an
-oversight) is suppressed explicitly with a `NagSuppressions` call and a
-comment explaining *why* — suppressions are never silent. Each pipeline
-step's article calls out any suppressions it introduces.
+oversight) is acknowledged explicitly with `Validations.of(construct).acknowledge({ id, reason })`
+and a comment explaining *why* — suppressions are never silent. Each
+pipeline step's article calls out any suppressions it introduces (Step 1
+ships with none — see the article for why).
 
 ## Documentation
 
 - [`docs/01-cdk-constructs-and-levels.md`](docs/01-cdk-constructs-and-levels.md) —
   What constructs are and why AWS organizes them into L1, L2, and L3.
+- [`docs/02-s3-foundations.md`](docs/02-s3-foundations.md) —
+  Building the `DataLakeBucket` L2 construct and verifying it with cdk-nag.
 
 More articles are added as each pipeline step is built.
+
+## Getting Started
+
+```bash
+npm install
+npm run build   # type-check the project
+npm test        # run the Jest suite, including the cdk-nag check
+npx cdk synth   # synthesize the CloudFormation template
+```
 
 ## Repository Structure (evolving)
 
 ```
 aws-cdk-constructs-masterclass/
-├── docs/            # Written articles for the Community Builder series
-├── examples/        # One folder per pipeline step (added incrementally)
+├── bin/app.ts                          # CDK app entry point (registers cdk-nag)
+├── lib/
+│   ├── data-pipeline-stack.ts          # The single, growing pipeline stack
+│   └── constructs/
+│       └── data-lake-bucket.ts         # Step 1: the S3 L2 construct
+├── test/                               # Jest + CDK assertions + cdk-nag checks
+├── docs/                                # Written articles for the Community Builder series
 └── README.md
 ```
-
-The CDK application scaffold (`bin/`, `lib/`, `package.json`, etc.) is
-introduced in Step 1 alongside the first S3 construct.
 
 ## License
 

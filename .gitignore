@@ -1,13 +1,15 @@
 # macOS
 .DS_Store
 
-# Node / CDK (added ahead of the Step 1 scaffold)
-node_modules/
-cdk.out/
-*.d.ts
+# Node / CDK
 *.js
 !jest.config.js
-.env
+*.d.ts
+node_modules
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
 
 # Python (Batch job code, added in Step 3)
 __pycache__/
