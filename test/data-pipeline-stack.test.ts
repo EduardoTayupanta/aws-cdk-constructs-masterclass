@@ -51,9 +51,9 @@ describe('DataPipelineStack (Steps 1-2: S3 + Lambda)', () => {
     }));
   });
 
-  test('the ingest function uses the latest Node.js runtime with tracing on', () => {
+  test('the ingest function is packaged as a container image with tracing on', () => {
     template.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
-      Handler: 'index.handler',
+      PackageType: 'Image',
       Architectures: ['arm64'],
       TracingConfig: { Mode: 'Active' },
     }));

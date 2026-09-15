@@ -11,11 +11,11 @@ cdk-nag findings instead of avoidable ones.
 ## The Construct: `IngestFunction`
 
 [`IngestFunction`](../lib/constructs/ingest-function.ts) wraps a
-`NodejsFunction` — the `aws-lambda-nodejs` L2 that bundles a TypeScript
-handler with [esbuild](https://esbuild.github.io/) at synth time. That's
-the construct doing real work for you: no separate `tsc`/webpack step to
-remember before `cdk deploy`, and the handler gets type-checked by the same
-`npm run build` that checks the rest of the app.
+`DockerImageFunction` — the Lambda L2 for **container image** packaging,
+as opposed to the more commonly-reached-for Zip packaging (`Function` /
+`NodejsFunction`). `lambda/ingest/` is its own self-contained mini-project
+(own `package.json`, own `Dockerfile`), independent of the CDK app's
+toolchain — a deliberate choice, discussed below.
 
 The handler itself ([`lambda/ingest/index.ts`](../lambda/ingest/index.ts))
 is deliberately narrow: for every object created under `raw/`, it writes a
@@ -24,6 +24,79 @@ in the *same* bucket. It never reads the object's contents — everything it
 needs is already on the S3 event record — which keeps its IAM footprint to
 exactly one action on exactly one prefix. That manifest is what Step 3
 (AWS Batch) and Step 4 (Athena) build on next.
+
+### Zip vs. container image, and why this function moved
+
+The function started out as a `NodejsFunction` (Zip packaging, bundled
+in-process with esbuild at synth time) — the right default for a small
+utility function with no unusual dependencies. It was converted to a
+container image as a deliberate exercise in *when the other L2 earns its
+keep*, not because this particular handler outgrew Zip's limits. The real
+trade-off:
+
+- **Zip (`NodejsFunction`/`Function`)** — bundled by the CDK app's own
+  toolchain, deploys in milliseconds, capped at 250 MB unzipped. Right
+  default for most functions, including this one.
+- **Container image (`DockerImageFunction`)** — up to 10 GB, full control
+  over the OS layer and native dependencies, but the function becomes its
+  own independently-built artifact: its own `package.json`, its own
+  `Dockerfile`, built with `docker build` rather than the app's bundler.
+
+[`lambda/ingest/Dockerfile`](../lambda/ingest/Dockerfile) is a two-stage
+build: a plain Node image installs the one runtime dependency
+(`@aws-sdk/client-s3`) and bundles the handler with esbuild, then only the
+single resulting `index.js` file is copied into AWS's own
+`public.ecr.aws/lambda/nodejs:22` base image. No `node_modules`, no
+TypeScript source, and no build tooling cross into the deployed image.
+
+### A pleasant surprise: `cdk synth` never touches Docker
+
+The expectation going in was that switching to a container image would
+make Docker a hard requirement for *everything* — `npm run build`,
+`npm test`, `cdk synth`, all of it. That turned out to be wrong.
+`DockerImageCode.fromImageAsset()` only **stages** the build context
+(copies `lambda/ingest/` into `cdk.out/asset.<content-hash>/` and records
+it in the assets manifest) during synthesis; the actual `docker build` /
+`docker push` is deferred entirely to **asset publishing** — which only
+happens on `cdk deploy` (or an explicit `cdk-assets publish`). Confirmed
+by inspecting `cdk.out/DataPipelineStack.assets.json` after a synth on a
+machine with no Docker installed at all:
+
+```json
+"dockerImages": {
+  "<hash>": {
+    "displayName": "IngestFunction/Resource/AssetImage",
+    "source": { "directory": "asset.<hash>", "platform": "linux/arm64" },
+    "destinations": { "...": { "repositoryName": "cdk-hnb659fds-container-assets-...", "imageTag": "<hash>" } }
+  }
+}
+```
+
+So the actual constraint is narrower than it first looked: **Docker (or a
+compatible builder such as Finch/Podman via `CDK_DOCKER`) is only required
+at `cdk deploy` time**, not for day-to-day development, type-checking, or
+this project's own test suite.
+
+### Cleanup: `cdk destroy` isn't the whole story anymore
+
+Once a `cdk deploy` does run, the built image is pushed to the **CDK
+bootstrap's shared ECR asset repository**
+(`cdk-hnb659fds-container-assets-<account>-<region>`) — infrastructure
+that belongs to the *bootstrap* stack, shared across every CDK app in that
+account/region, not to `DataPipelineStack`. `cdk destroy` only tears down
+resources this stack owns, so the pushed image is **not** removed by it.
+Full cleanup for this project's "everything destroyable via CDK" goal is
+two commands, not one:
+
+```bash
+npx cdk destroy   # removes DataPipelineStack's own resources
+npx cdk gc        # removes assets (including this image) no stack references anymore
+```
+
+`cdk gc` is a stable CDK CLI command purpose-built for this: it finds
+assets in the bootstrap bucket/repository that no currently-deployed stack
+references and deletes them. It's the CDK-native equivalent of `docker
+system prune`, scoped to what CDK itself published.
 
 ### Another deprecation gotcha: `logRetention`
 

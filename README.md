@@ -35,6 +35,11 @@ S3  →  Lambda  →  AWS Batch (Python)  →  Athena
   as an alternative CDK language.
 - **Security & compliance checks:** [`cdk-nag`](https://github.com/cdklabs/cdk-nag)
   is applied to every stack in this repo, starting with the Step 1 scaffold.
+- **Docker:** required to actually deploy (`cdk deploy`) from Step 2
+  onward, since `IngestFunction` is packaged as a container image — but
+  *not* for `npm run build`, `npm test`, or `cdk synth`. A Docker-compatible
+  builder such as Finch or Podman also works, via `CDK_DOCKER`. See
+  [docs/03-lambda-ingest.md](docs/03-lambda-ingest.md) for the details.
 
 ## Security & Compliance: cdk-nag
 
@@ -125,9 +130,12 @@ More articles are added as each pipeline step is built.
 
 ```bash
 npm install
-npm run build   # type-check the project
+npm run build   # type-check the project (CDK app + the ingest Lambda's own sub-project)
 npm test        # run the Jest suite, including the cdk-nag check
-npx cdk synth   # synthesize the CloudFormation template
+npx cdk synth   # synthesize the CloudFormation template — no Docker needed
+npx cdk deploy  # actually deploy — this is the step that needs Docker
+npx cdk destroy # tear down this stack's resources
+npx cdk gc      # also reclaim assets (e.g. the Lambda container image) no stack references anymore
 ```
 
 ## Repository Structure (evolving)
@@ -141,7 +149,10 @@ aws-cdk-constructs-masterclass/
 │       ├── data-lake-bucket.ts         # Step 1: the S3 L2 construct
 │       └── ingest-function.ts          # Step 2: the Lambda L2 construct
 ├── lambda/
-│   └── ingest/index.ts                 # Step 2: the ingest function's handler code
+│   └── ingest/                         # Step 2: self-contained container-image Lambda
+│       ├── index.ts                    #   handler code
+│       ├── Dockerfile                  #   two-stage build: esbuild, then AWS's Lambda base image
+│       └── package.json                #   its own deps, independent of the CDK app's
 ├── test/                               # Jest + CDK assertions + cdk-nag checks
 ├── docs/                                # Written articles for the Community Builder series
 └── README.md
