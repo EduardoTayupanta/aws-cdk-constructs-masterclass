@@ -4,7 +4,7 @@ import { AwsSolutionsChecks } from 'cdk-nag';
 import { DataPipelineStack } from '../lib/data-pipeline-stack';
 import * as cdkJson from '../cdk.json';
 
-describe('DataPipelineStack (Step 1: S3)', () => {
+describe('DataPipelineStack (Steps 1-2: S3 + Lambda)', () => {
   // Feature flags in cdk.json are only applied by the `cdk` CLI, never by a
   // plain `new App()` — Jest has to load them explicitly or the stack
   // behaves differently under test than it does under `cdk synth`/`deploy`.
@@ -45,6 +45,50 @@ describe('DataPipelineStack (Step 1: S3)', () => {
           Match.objectLike({
             Effect: 'Deny',
             Condition: { Bool: { 'aws:SecureTransport': 'false' } },
+          }),
+        ]),
+      }),
+    }));
+  });
+
+  test('the ingest function uses the latest Node.js runtime with tracing on', () => {
+    template.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
+      Handler: 'index.handler',
+      Architectures: ['arm64'],
+      TracingConfig: { Mode: 'Active' },
+    }));
+  });
+
+  test('the ingest function is only granted scoped write access to manifests/*', () => {
+    template.hasResourceProperties('AWS::IAM::Policy', Match.objectLike({
+      PolicyDocument: Match.objectLike({
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: Match.arrayWith(['s3:PutObject']),
+            Resource: Match.objectLike({
+              'Fn::Join': Match.arrayWith([
+                Match.arrayWith([Match.stringLikeRegexp('/manifests/\\*$')]),
+              ]),
+            }),
+          }),
+        ]),
+      }),
+    }));
+  });
+
+  test('the raw data bucket notifies the ingest function for objects under raw/', () => {
+    template.hasResourceProperties('Custom::S3BucketNotifications', Match.objectLike({
+      NotificationConfiguration: Match.objectLike({
+        LambdaFunctionConfigurations: Match.arrayWith([
+          Match.objectLike({
+            Events: ['s3:ObjectCreated:*'],
+            Filter: Match.objectLike({
+              Key: {
+                FilterRules: Match.arrayWith([
+                  Match.objectLike({ Name: 'prefix', Value: 'raw/' }),
+                ]),
+              },
+            }),
           }),
         ]),
       }),

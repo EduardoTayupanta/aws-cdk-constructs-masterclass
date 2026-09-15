@@ -23,8 +23,8 @@ S3  →  Lambda  →  AWS Batch (Python)  →  Athena
 |------|---------|--------|-------|
 | 0 | — | ✅ Done | [Understanding Constructs & Why They Have Levels](docs/01-cdk-constructs-and-levels.md) |
 | 1 | S3 | ✅ Done | [Foundational L2 usage, verified with cdk-nag](docs/02-s3-foundations.md) |
-| 2 | Lambda | 🔜 Next | Event-driven processing triggered from S3 |
-| 3 | AWS Batch | ⏳ Planned | Heavier processing via a Python job, defined with CDK/TypeScript |
+| 2 | Lambda | ✅ Done | [Reacting to S3 events; cdk-nag's first real trade-offs](docs/03-lambda-ingest.md) |
+| 3 | AWS Batch | 🔜 Next | Heavier processing via a Python job, defined with CDK/TypeScript |
 | 4 | Athena | ⏳ Planned | Querying pipeline output via Glue Data Catalog + Athena |
 
 ## Tech Stack
@@ -107,6 +107,7 @@ name at a glance):
 | ID | Step | Construct |
 |----|------|-----------|
 | `RawDataBucket` | 1 (S3) | `DataLakeBucket` |
+| `IngestFunction` | 2 (Lambda) | `IngestFunction` |
 
 ## Documentation
 
@@ -114,6 +115,9 @@ name at a glance):
   What constructs are and why AWS organizes them into L1, L2, and L3.
 - [`docs/02-s3-foundations.md`](docs/02-s3-foundations.md) —
   Building the `DataLakeBucket` L2 construct and verifying it with cdk-nag.
+- [`docs/03-lambda-ingest.md`](docs/03-lambda-ingest.md) —
+  Wiring Lambda to S3 events and cdk-nag's first genuinely justified
+  suppressions.
 
 More articles are added as each pipeline step is built.
 
@@ -134,7 +138,10 @@ aws-cdk-constructs-masterclass/
 ├── lib/
 │   ├── data-pipeline-stack.ts          # The single, growing pipeline stack
 │   └── constructs/
-│       └── data-lake-bucket.ts         # Step 1: the S3 L2 construct
+│       ├── data-lake-bucket.ts         # Step 1: the S3 L2 construct
+│       └── ingest-function.ts          # Step 2: the Lambda L2 construct
+├── lambda/
+│   └── ingest/index.ts                 # Step 2: the ingest function's handler code
 ├── test/                               # Jest + CDK assertions + cdk-nag checks
 ├── docs/                                # Written articles for the Community Builder series
 └── README.md
