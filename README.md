@@ -33,6 +33,34 @@ S3  →  Lambda  →  AWS Batch (Python)  →  Athena
 - **Application/job code:** **Python** is used only where it naturally
   belongs — for example, inside the AWS Batch job's container image — never
   as an alternative CDK language.
+- **Security & compliance checks:** [`cdk-nag`](https://github.com/cdklabs/cdk-nag)
+  is applied to every stack in this repo, starting with the Step 1 scaffold.
+
+## Security & Compliance: cdk-nag
+
+Every stack introduced in this series is validated with **cdk-nag** — a set
+of CDK Aspects that run the [AWS Solutions](https://github.com/cdklabs/cdk-nag/blob/main/RULES.md)
+rule pack (and optionally HIPAA, NIST 800-53, or PCI-DSS packs) against the
+synthesized CloudFormation template, flagging violations such as
+unencrypted buckets, overly permissive IAM policies, or missing access
+logging *before* the stack is ever deployed.
+
+The rule pack is wired into the CDK app's entry point once it exists
+(Step 1), applied at the `App` level so it automatically covers every
+future stack in the pipeline:
+
+```ts
+import { App, Aspects } from 'aws-cdk-lib';
+import { AwsSolutionsChecks } from 'cdk-nag';
+
+const app = new App();
+Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+```
+
+Any violation that is a deliberate, documented trade-off (rather than an
+oversight) is suppressed explicitly with a `NagSuppressions` call and a
+comment explaining *why* — suppressions are never silent. Each pipeline
+step's article calls out any suppressions it introduces.
 
 ## Documentation
 
