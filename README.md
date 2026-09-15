@@ -62,6 +62,52 @@ and a comment explaining *why* — suppressions are never silent. Each
 pipeline step's article calls out any suppressions it introduces (Step 1
 ships with none — see the article for why).
 
+## Construct ID Conventions
+
+This project is one single, growing `DataPipelineStack` — every step adds
+more constructs to the *same* tree, so ID collisions become more likely
+over time than in a repo full of small, disposable stacks. The rules below
+apply to every construct added from Step 1 onward, and are based on the
+[AWS CDK Design Guidelines](https://github.com/aws/aws-cdk/blob/main/docs/DESIGN_GUIDELINES.md#construct-ids):
+
+1. **IDs only need to be unique among siblings, not across the whole
+   stack.** CDK enforces this automatically — defining two children with
+   the same ID under the same scope fails at synth time. The rules below
+   are about human readability and long-term stability, not about working
+   around a limitation CDK doesn't actually have.
+2. **PascalCase, and name the construct's *role*, not its AWS type.**
+   Prefer `RawDataBucket` over `Bucket1` or `S3Bucket`. A role-based name
+   is very unlikely to collide with the next step's constructs, since each
+   pipeline stage does a different job.
+3. **Don't stutter the parent's name into the child's ID.** Inside
+   `RawDataBucket` (a `DataLakeBucket`), children are `Bucket` and
+   `AccessLogsBucket` — not `RawDataBucketBucket`. The full, unique
+   identity already comes from the construct *path* (`RawDataBucket/Bucket`),
+   not from repeating context in every segment.
+4. **Use the ID `Resource` for a construct's single primary wrapped
+   resource** — this is CDK's own internal convention (it's why
+   `.node.defaultChild` works predictably on built-in L2s). It only
+   applies when a construct wraps exactly *one* resource 1:1. `DataLakeBucket`
+   deliberately does **not** use it: it owns two co-equal buckets, so both
+   get an explicit, descriptive ID instead.
+5. **Never concatenate strings to force uniqueness in a loop.** If a
+   future step needs several similar resources (e.g. multiple Batch job
+   definitions), create an intermediate `Construct` to act as a namespace,
+   per the CDK guideline's own example, rather than building IDs like
+   `Job-${name}`.
+6. **Treat existing IDs as stable once shipped.** A construct ID feeds
+   into the generated CloudFormation logical ID; renaming one after a real
+   deployment replaces the underlying resource. Get the name right before
+   merging, not after.
+
+**Top-level IDs already used in `DataPipelineStack`** (each pipeline step
+appends to this list so the next one can pick a non-colliding, on-theme
+name at a glance):
+
+| ID | Step | Construct |
+|----|------|-----------|
+| `RawDataBucket` | 1 (S3) | `DataLakeBucket` |
+
 ## Documentation
 
 - [`docs/01-cdk-constructs-and-levels.md`](docs/01-cdk-constructs-and-levels.md) —
