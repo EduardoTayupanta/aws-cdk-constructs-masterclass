@@ -117,6 +117,9 @@ name at a glance):
 | `ProcessingJob` | 3 (AWS Batch) | `ProcessingJob` |
 | `ProcessingTrigger` | 3 (AWS Batch) | `ProcessingTrigger` |
 | `QueryCatalog` | 4 (Athena) | `QueryCatalog` |
+| `PipelineAlertsKey` | Cross-cutting (failure alerts) | `Key` (aws-kms) |
+| `PipelineAlerts` | Cross-cutting (failure alerts) | `Topic` (aws-sns) |
+| `ProcessingJobFailureRule` | Cross-cutting (failure alerts) | `Rule` (aws-events) |
 
 ## Documentation
 
@@ -176,6 +179,7 @@ aws-cdk-constructs-masterclass/
 │       └── requirements.txt             #   its own deps (boto3)
 ├── test/                               # Jest + CDK assertions + cdk-nag checks
 ├── docs/                                # Written articles for the Community Builder series
+├── LICENSE                              # MIT
 └── README.md
 ```
 

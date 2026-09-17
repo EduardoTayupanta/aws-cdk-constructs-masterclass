@@ -218,6 +218,26 @@ non-TLS connection (`AwsSolutions-SNS3`) — the same deny-if-insecure shape
 up in the findings table below: both are satisfied outright, with nothing
 to acknowledge.
 
+**A second, less obvious gap: EventBridge's own grant needed narrowing by
+hand.** Adding `new SnsTopic(this.alertsTopic)` as the rule's target makes
+CDK grant `events.amazonaws.com` publish access to the topic (and, via the
+topic's `masterKey`, `kms:Decrypt`/`kms:GenerateDataKey*` on
+`PipelineAlertsKey`) automatically — but the actual permissions that land
+in the synthesized template carry no `aws:SourceArn` condition.
+`aws-events-targets`' `SqsQueue` target scopes that same kind of
+grant to the specific rule; its `SnsTopic` target doesn't. Left alone, any
+EventBridge rule in any AWS account that learned this topic's ARN could
+publish to it. Two explicit `Deny` statements (one on the topic, one on the
+key), each conditioned on `aws:SourceArn` not matching
+`ProcessingJobFailureRule`'s own ARN, close that gap without touching the
+automatic `Allow` — an explicit `Deny` only fires when its own condition is
+true, so the legitimate rule keeps working. cdk-nag's AWS Solutions pack
+has no rule that catches this (it doesn't inspect source-ARN conditions on
+service-principal grants), so this was only visible by reading the
+synthesized IAM policy directly, the same way Step 3's `open: true` VPC
+endpoint default only surfaced by reading the synthesized security group
+rule instead of the prop documentation.
+
 **This stack does not subscribe anything to the topic.** Wiring your own
 email address, an SMS number, a Slack webhook (via SNS-to-Chatbot or a
 subscriber Lambda), or anything else you'd actually want to be notified on

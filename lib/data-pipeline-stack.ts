@@ -3,7 +3,7 @@ import { CfnOutput, RemovalPolicy, Stack, StackProps, Validations } from 'aws-cd
 import { EventType } from 'aws-cdk-lib/aws-s3';
 import { LambdaDestination } from 'aws-cdk-lib/aws-s3-notifications';
 import { SnsDestination } from 'aws-cdk-lib/aws-lambda-destinations';
-import { AnyPrincipal, Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { AnyPrincipal, Effect, PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { Rule } from 'aws-cdk-lib/aws-events';
@@ -189,7 +189,15 @@ export class DataPipelineStack extends Stack {
     // event per job status transition; filtering on `jobQueue` scopes this
     // to jobs from *this* pipeline's queue specifically, since the default
     // bus is account-wide and could carry events from other Batch queues.
-    new Rule(this, 'ProcessingJobFailureRule', {
+    // Named explicitly so its ARN can be computed below without a CDK
+    // token that references the Rule resource itself — Rule already
+    // depends on the topic (as its target), and the topic depends on the
+    // key (as its masterKey), so a real `Fn::GetAtt`/`Ref` back to the
+    // Rule from either one's policy would be a circular dependency.
+    const batchFailureRuleName = 'ProcessingJobFailureRule';
+
+    new Rule(this, batchFailureRuleName, {
+      ruleName: batchFailureRuleName,
       eventPattern: {
         source: ['aws.batch'],
         detailType: ['Batch Job State Change'],
@@ -200,6 +208,47 @@ export class DataPipelineStack extends Stack {
       },
       targets: [new SnsTopic(this.alertsTopic)],
     });
+
+    const batchFailureRuleArn = Stack.of(this).formatArn({
+      service: 'events',
+      resource: 'rule',
+      resourceName: batchFailureRuleName,
+    });
+
+    // The SnsTopic event target above grants events.amazonaws.com publish
+    // (and, transitively, the topic's KMS key) with no aws:SourceArn
+    // condition — aws-events-targets' SqsQueue target scopes that grant to
+    // the specific rule, but its SnsTopic target doesn't (compare
+    // node_modules/aws-cdk-lib/aws-events-targets/lib/{sqs,sns}.js). Left
+    // alone, any EventBridge rule in any AWS account that learns this
+    // topic's ARN could publish to it. These explicit Denies close that
+    // gap: an EventBridge-sourced call is only allowed through when its
+    // aws:SourceArn is this specific rule — the automatic Allow still
+    // applies for that one case, since an explicit Deny only fires when
+    // its own condition matches. `batchFailureRuleArn` is built from the
+    // rule's own (explicit) name rather than a reference to the Rule
+    // construct, precisely to avoid the circular dependency above.
+    this.alertsTopic.addToResourcePolicy(
+      new PolicyStatement({
+        sid: 'DenyPublishFromOtherEventBridgeRules',
+        effect: Effect.DENY,
+        principals: [new ServicePrincipal('events.amazonaws.com')],
+        actions: ['sns:Publish'],
+        resources: [this.alertsTopic.topicArn],
+        conditions: { StringNotEquals: { 'aws:SourceArn': batchFailureRuleArn } },
+      }),
+    );
+
+    alertsTopicKey.addToResourcePolicy(
+      new PolicyStatement({
+        sid: 'DenyKeyUseFromOtherEventBridgeRules',
+        effect: Effect.DENY,
+        principals: [new ServicePrincipal('events.amazonaws.com')],
+        actions: ['kms:Decrypt', 'kms:GenerateDataKey*'],
+        resources: ['*'],
+        conditions: { StringNotEquals: { 'aws:SourceArn': batchFailureRuleArn } },
+      }),
+    );
 
     this.rawDataBucket.bucket.addEventNotification(
       EventType.OBJECT_CREATED,

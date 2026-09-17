@@ -270,6 +270,59 @@ describe('DataPipelineStack (Steps 1-4: S3 + Lambda + Batch + Athena)', () => {
     }));
   });
 
+  test('the alerts topic and its KMS key deny EventBridge principals from any rule other than the pipeline\'s own', () => {
+    // Regression guard for the confused-deputy fix: aws-events-targets'
+    // SnsTopic target grants events.amazonaws.com publish (and, via the
+    // topic's masterKey, kms:Decrypt/kms:GenerateDataKey*) with no
+    // aws:SourceArn condition of its own — these two explicit Denies are
+    // the only thing narrowing that grant to this pipeline's own rule.
+    // Neither cdk-nag nor any other test in this file would catch either
+    // Deny being silently dropped or its condition being loosened.
+    template.hasResourceProperties('AWS::SNS::TopicPolicy', Match.objectLike({
+      PolicyDocument: Match.objectLike({
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Sid: 'DenyPublishFromOtherEventBridgeRules',
+            Effect: 'Deny',
+            Principal: { Service: 'events.amazonaws.com' },
+            Action: 'sns:Publish',
+            Condition: {
+              StringNotEquals: {
+                'aws:SourceArn': Match.objectLike({
+                  'Fn::Join': Match.arrayWith([
+                    Match.arrayWith([Match.stringLikeRegexp(':rule/ProcessingJobFailureRule$')]),
+                  ]),
+                }),
+              },
+            },
+          }),
+        ]),
+      }),
+    }));
+
+    template.hasResourceProperties('AWS::KMS::Key', Match.objectLike({
+      KeyPolicy: Match.objectLike({
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Sid: 'DenyKeyUseFromOtherEventBridgeRules',
+            Effect: 'Deny',
+            Principal: { Service: 'events.amazonaws.com' },
+            Action: ['kms:Decrypt', 'kms:GenerateDataKey*'],
+            Condition: {
+              StringNotEquals: {
+                'aws:SourceArn': Match.objectLike({
+                  'Fn::Join': Match.arrayWith([
+                    Match.arrayWith([Match.stringLikeRegexp(':rule/ProcessingJobFailureRule$')]),
+                  ]),
+                }),
+              },
+            },
+          }),
+        ]),
+      }),
+    }));
+  });
+
   test('exposes the processing job queue and the bucket key-prefix convention as outputs', () => {
     template.hasOutput('ProcessingJobQueueArn', Match.objectLike({
       Value: Match.objectLike({ 'Fn::GetAtt': Match.arrayWith([Match.stringLikeRegexp('^ProcessingJobJobQueue')]) }),
