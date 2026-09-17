@@ -4,7 +4,7 @@ import { AwsSolutionsChecks } from 'cdk-nag';
 import { DataPipelineStack } from '../lib/data-pipeline-stack';
 import * as cdkJson from '../cdk.json';
 
-describe('DataPipelineStack (Steps 1-2: S3 + Lambda)', () => {
+describe('DataPipelineStack (Steps 1-3: S3 + Lambda + Batch)', () => {
   // Feature flags in cdk.json are only applied by the `cdk` CLI, never by a
   // plain `new App()` — Jest has to load them explicitly or the stack
   // behaves differently under test than it does under `cdk synth`/`deploy`.
@@ -88,6 +88,77 @@ describe('DataPipelineStack (Steps 1-2: S3 + Lambda)', () => {
                   Match.objectLike({ Name: 'prefix', Value: 'raw/' }),
                 ]),
               },
+            }),
+          }),
+        ]),
+      }),
+    }));
+  });
+
+  test('the raw data bucket notifies the processing trigger for objects under manifests/', () => {
+    template.hasResourceProperties('Custom::S3BucketNotifications', Match.objectLike({
+      NotificationConfiguration: Match.objectLike({
+        LambdaFunctionConfigurations: Match.arrayWith([
+          Match.objectLike({
+            Events: ['s3:ObjectCreated:*'],
+            Filter: Match.objectLike({
+              Key: {
+                FilterRules: Match.arrayWith([
+                  Match.objectLike({ Name: 'prefix', Value: 'manifests/' }),
+                ]),
+              },
+            }),
+          }),
+        ]),
+      }),
+    }));
+  });
+
+  test('the processing job runs on Fargate with no public IP and a bounded timeout', () => {
+    template.hasResourceProperties('AWS::Batch::JobDefinition', Match.objectLike({
+      PlatformCapabilities: ['FARGATE'],
+      ContainerProperties: Match.objectLike({
+        NetworkConfiguration: { AssignPublicIp: 'DISABLED' },
+      }),
+      Timeout: { AttemptDurationSeconds: 300 },
+    }));
+  });
+
+  test('the processing job\'s compute environment, queue, and job definition are wired together', () => {
+    template.resourceCountIs('AWS::Batch::ComputeEnvironment', 1);
+    template.resourceCountIs('AWS::Batch::JobQueue', 1);
+    template.resourceCountIs('AWS::Batch::JobDefinition', 1);
+  });
+
+  test('the processing job\'s VPC has no NAT Gateway (isolated subnets only)', () => {
+    template.resourceCountIs('AWS::EC2::NatGateway', 0);
+  });
+
+  test('the processing job\'s task role is only granted scoped access to manifests/*, raw/*, and processed/*', () => {
+    template.hasResourceProperties('AWS::IAM::Policy', Match.objectLike({
+      PolicyDocument: Match.objectLike({
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: Match.arrayWith(['s3:GetObject*']),
+            Resource: Match.arrayWith([
+              Match.objectLike({
+                'Fn::Join': Match.arrayWith([
+                  Match.arrayWith([Match.stringLikeRegexp('/manifests/\\*$')]),
+                ]),
+              }),
+              Match.objectLike({
+                'Fn::Join': Match.arrayWith([
+                  Match.arrayWith([Match.stringLikeRegexp('/raw/\\*$')]),
+                ]),
+              }),
+            ]),
+          }),
+          Match.objectLike({
+            Action: Match.arrayWith(['s3:PutObject']),
+            Resource: Match.objectLike({
+              'Fn::Join': Match.arrayWith([
+                Match.arrayWith([Match.stringLikeRegexp('/processed/\\*$')]),
+              ]),
             }),
           }),
         ]),

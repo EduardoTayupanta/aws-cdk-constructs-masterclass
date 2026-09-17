@@ -24,6 +24,7 @@
   },
   "homepage": "https://github.com/EduardoTayupanta/aws-cdk-constructs-masterclass#readme",
   "dependencies": {
+    "@aws-sdk/client-batch": "^3.1132.0",
     "aws-cdk-lib": "^2.269.0",
     "cdk-nag": "^3.0.2",
     "constructs": "^10.8.1",
@@ -32,9 +33,11 @@
   "devDependencies": {
     "@swc/core": "^1.16.2",
     "@swc/jest": "^0.2.39",
+    "@types/aws-lambda": "^8.10.163",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.5.1",
     "aws-cdk": "^2.1141.0",
+    "esbuild": "^0.28.2",
     "jest": "^30.5.1",
     "tsx": "^4.23.13",
     "typescript": "~7.0.2"

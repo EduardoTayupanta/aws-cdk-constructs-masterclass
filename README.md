@@ -24,8 +24,8 @@ S3  →  Lambda  →  AWS Batch (Python)  →  Athena
 | 0 | — | ✅ Done | [Understanding Constructs & Why They Have Levels](docs/01-cdk-constructs-and-levels.md) |
 | 1 | S3 | ✅ Done | [Foundational L2 usage, verified with cdk-nag](docs/02-s3-foundations.md) |
 | 2 | Lambda | ✅ Done | [Reacting to S3 events; cdk-nag's first real trade-offs](docs/03-lambda-ingest.md) |
-| 3 | AWS Batch | 🔜 Next | Heavier processing via a Python job, defined with CDK/TypeScript |
-| 4 | Athena | ⏳ Planned | Querying pipeline output via Glue Data Catalog + Athena |
+| 3 | AWS Batch | ✅ Done | [Fargate, VPC endpoints, and why EventBridge's Batch target isn't enough alone](docs/04-batch-processing.md) |
+| 4 | Athena | 🔜 Next | Querying pipeline output via Glue Data Catalog + Athena |
 
 ## Tech Stack
 
@@ -36,9 +36,10 @@ S3  →  Lambda  →  AWS Batch (Python)  →  Athena
 - **Security & compliance checks:** [`cdk-nag`](https://github.com/cdklabs/cdk-nag)
   is applied to every stack in this repo, starting with the Step 1 scaffold.
 - **Docker:** required to actually deploy (`cdk deploy`) from Step 2
-  onward, since `IngestFunction` is packaged as a container image — but
-  *not* for `npm run build`, `npm test`, or `cdk synth`. A Docker-compatible
-  builder such as Finch or Podman also works, via `CDK_DOCKER`. See
+  onward, since `IngestFunction` and the Step 3 Batch job (`batch/process/`)
+  are both packaged as container images — but *not* for `npm run build`,
+  `npm test`, or `cdk synth`. A Docker-compatible builder such as Finch or
+  Podman also works, via `CDK_DOCKER`. See
   [docs/03-lambda-ingest.md](docs/03-lambda-ingest.md) for the details.
 
 ## Security & Compliance: cdk-nag
@@ -113,6 +114,8 @@ name at a glance):
 |----|------|-----------|
 | `RawDataBucket` | 1 (S3) | `DataLakeBucket` |
 | `IngestFunction` | 2 (Lambda) | `IngestFunction` |
+| `ProcessingJob` | 3 (AWS Batch) | `ProcessingJob` |
+| `ProcessingTrigger` | 3 (AWS Batch) | `ProcessingTrigger` |
 
 ## Documentation
 
@@ -123,6 +126,9 @@ name at a glance):
 - [`docs/03-lambda-ingest.md`](docs/03-lambda-ingest.md) —
   Wiring Lambda to S3 events and cdk-nag's first genuinely justified
   suppressions.
+- [`docs/04-batch-processing.md`](docs/04-batch-processing.md) —
+  AWS Batch on Fargate, VPC endpoints instead of a NAT Gateway, and why
+  EventBridge's native Batch target can't carry a triggering object's key.
 
 More articles are added as each pipeline step is built.
 
@@ -130,12 +136,13 @@ More articles are added as each pipeline step is built.
 
 ```bash
 npm install
+npm --prefix lambda/ingest install   # the ingest Lambda's own, independent sub-project
 npm run build   # type-check the project (CDK app + the ingest Lambda's own sub-project)
 npm test        # run the Jest suite, including the cdk-nag check
 npx cdk synth   # synthesize the CloudFormation template — no Docker needed
 npx cdk deploy  # actually deploy — this is the step that needs Docker
 npx cdk destroy # tear down this stack's resources
-npx cdk gc      # also reclaim assets (e.g. the Lambda container image) no stack references anymore
+npx cdk gc      # also reclaim assets (e.g. the container images) no stack references anymore
 ```
 
 ## Repository Structure (evolving)
@@ -147,12 +154,21 @@ aws-cdk-constructs-masterclass/
 │   ├── data-pipeline-stack.ts          # The single, growing pipeline stack
 │   └── constructs/
 │       ├── data-lake-bucket.ts         # Step 1: the S3 L2 construct
-│       └── ingest-function.ts          # Step 2: the Lambda L2 construct
+│       ├── ingest-function.ts          # Step 2: the Lambda L2 construct
+│       ├── processing-job.ts           # Step 3: VPC + Batch (Fargate) L2 composition
+│       └── processing-trigger.ts       # Step 3: the Zip Lambda that submits Batch jobs
 ├── lambda/
-│   └── ingest/                         # Step 2: self-contained container-image Lambda
-│       ├── index.ts                    #   handler code
-│       ├── Dockerfile                  #   two-stage build: esbuild, then AWS's Lambda base image
-│       └── package.json                #   its own deps, independent of the CDK app's
+│   ├── ingest/                          # Step 2: self-contained container-image Lambda
+│   │   ├── index.ts                     #   handler code
+│   │   ├── Dockerfile                   #   two-stage build: esbuild, then AWS's Lambda base image
+│   │   └── package.json                 #   its own deps, independent of the CDK app's
+│   └── processing-trigger/              # Step 3: Zip Lambda, bundled by the CDK app itself
+│       └── index.ts                     #   handler code (no separate sub-project needed)
+├── batch/
+│   └── process/                         # Step 3: self-contained container-image Batch job
+│       ├── process.py                   #   raw/ -> processed/ (JSON Lines) transform
+│       ├── Dockerfile                   #   plain Python base image
+│       └── requirements.txt             #   its own deps (boto3)
 ├── test/                               # Jest + CDK assertions + cdk-nag checks
 ├── docs/                                # Written articles for the Community Builder series
 └── README.md

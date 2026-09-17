@@ -77,6 +77,61 @@ compatible builder such as Finch/Podman via `CDK_DOCKER`) is only required
 at `cdk deploy` time**, not for day-to-day development, type-checking, or
 this project's own test suite.
 
+### Validating the image locally, without a real deploy
+
+`cdk synth` skipping Docker is convenient, but it also means synth alone
+proves nothing about whether the image actually *builds* or *runs*. Both
+are cheap to check locally, without touching AWS at all, using the same
+build context CDK stages (`lambda/ingest/`) and the Lambda Runtime
+Interface Emulator (RIE) baked into `public.ecr.aws/lambda/nodejs:22`:
+
+```bash
+# 1. Build the same context cdk deploy would, for the same architecture
+#    the construct requests (Architecture.ARM_64) — Docker Desktop cross-
+#    builds it via QEMU even on an amd64 host.
+docker build --platform linux/arm64 -t ingest-function-test lambda/ingest
+
+# 2. Run it — the base image's entrypoint starts the RIE on port 8080.
+docker run -d --name ingest-fn-test -p 9000:8080 --platform linux/arm64 \
+  -e AWS_REGION=us-east-1 -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test \
+  ingest-function-test
+
+# 3. Invoke it through the RIE's local endpoint with a synthetic S3 event.
+curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{
+  "Records": [{
+    "eventTime": "2026-09-14T12:00:00.000Z",
+    "eventName": "ObjectCreated:Put",
+    "s3": {
+      "bucket": { "name": "test-data-lake-bucket" },
+      "object": { "key": "raw/sample.json", "size": 1234 }
+    }
+  }]
+}'
+```
+
+The build succeeds and the invoke gets as far as it possibly can without
+real credentials: the logs show the handler correctly deriving the
+manifest key (`raw/sample.json` → `manifests/sample.json.json`) and then
+issuing a real `PutObject` call to S3, which AWS rejects with
+`InvalidAccessKeyId` — a genuine API error, not a local/mocking one. That
+error is actually the useful signal here: it proves the request reached
+S3 at all, which is as far as this handler's logic can be exercised
+without a real bucket and real credentials. Two things are worth noting
+about the run itself:
+
+- `AWS_REGION` had to be set explicitly. A deployed Lambda always has it
+  injected by the platform; the RIE does not, so omitting it fails
+  earlier with `Region is missing` — a local-harness gap, not a bug.
+- No AWS credentials of any kind are required to prove the *build*
+  works — only the invoke step needs them (even fake ones), because the
+  AWS SDK client is constructed lazily, on the first S3 call.
+
+This closes the gap `cdk synth` leaves open: synth proves the app
+*assembles* correctly and stages the right build context; this local
+Docker run proves the image *builds* and the bundled handler *executes*
+correctly inside it — the two things a real `cdk deploy` would otherwise
+be the first opportunity to discover.
+
 ### Cleanup: `cdk destroy` isn't the whole story anymore
 
 Once a `cdk deploy` does run, the built image is pushed to the **CDK
@@ -177,6 +232,7 @@ the mechanism working as intended, not a rule being "worked around."
 
 ## What's Next
 
-Step 3 introduces AWS Batch — the first step where the *application* code
-is Python rather than TypeScript, while the infrastructure defining it
-stays CDK/TypeScript. It will process the objects the manifests point to.
+[Step 3](04-batch-processing.md) introduces AWS Batch — the first step
+where the *application* code is Python rather than TypeScript, while the
+infrastructure defining it stays CDK/TypeScript. It processes the objects
+the manifests point to.
