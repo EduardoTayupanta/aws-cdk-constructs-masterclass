@@ -15,3 +15,8 @@ cdk.out
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/
+.coverage
+
+# Test coverage reports
+coverage/
