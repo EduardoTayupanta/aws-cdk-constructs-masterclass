@@ -4,6 +4,7 @@
   "description": "A hands-on, **living** deep dive into AWS CDK constructs — what they are, why they come in levels (L1 / L2 / L3), and how to use them to build a real architecture incrementally, one construct at a time.",
   "main": "index.js",
   "private": true,
+  "license": "MIT",
   "directories": {
     "doc": "docs"
   },

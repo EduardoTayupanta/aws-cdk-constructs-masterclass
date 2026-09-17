@@ -2,6 +2,7 @@ import { Construct } from 'constructs';
 import * as path from 'node:path';
 import { Duration, RemovalPolicy, Validations } from 'aws-cdk-lib/core';
 import { Architecture, DockerImageCode, DockerImageFunction, Tracing } from 'aws-cdk-lib/aws-lambda';
+import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 
 export interface IngestFunctionProps {
@@ -51,10 +52,15 @@ export class IngestFunction extends Construct {
     this.fn = new DockerImageFunction(this, 'Resource', {
       code: DockerImageCode.fromImageAsset(
         path.join(__dirname, '..', '..', 'lambda', 'ingest'),
+        // Without an explicit `platform`, Docker builds for the *host*
+        // machine's architecture, not the Lambda function's — on an x86_64
+        // build host (an Intel Mac, most CI runners) that silently produces
+        // an amd64 image, which then fails at invoke time with "exec format
+        // error" against this function's `Architecture.ARM_64`. Pinning the
+        // build platform here keeps the image and the function architecture
+        // in sync regardless of what machine runs `cdk synth`/`deploy`.
+        { platform: Platform.LINUX_ARM64 },
       ),
-      // The image is built for whatever architecture the machine running
-      // `cdk synth`/`deploy` targets by default (no cross-compilation is
-      // configured here) — this must stay in sync with that build target.
       architecture: Architecture.ARM_64,
       memorySize: 256,
       timeout: Duration.seconds(30),

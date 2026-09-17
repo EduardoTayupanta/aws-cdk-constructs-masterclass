@@ -67,8 +67,13 @@ export class ProcessingJob extends Construct {
 
     const removalPolicy = props.removalPolicy ?? RemovalPolicy.RETAIN;
 
+    // A single AZ: this VPC exists solely to run one Batch job at a time,
+    // not a highly-available service — a second AZ would buy no resilience
+    // for a job that isn't running redundantly across it, while doubling
+    // the hourly cost of every interface endpoint below (one ENI per AZ
+    // each).
     this.vpc = new Vpc(this, 'Vpc', {
-      maxAzs: 2,
+      maxAzs: 1,
       natGateways: 0,
       subnetConfiguration: [
         { name: 'Isolated', subnetType: SubnetType.PRIVATE_ISOLATED, cidrMask: 24 },

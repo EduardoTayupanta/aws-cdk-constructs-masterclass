@@ -151,6 +151,6 @@ that ships.
 
 ## What's Next
 
-Step 2 adds a Lambda function triggered by objects landing in
-`RawDataBucket`, and is the more likely place for the masterclass' first
-genuine, justified cdk-nag suppression.
+[Step 2](03-lambda-ingest.md) adds a Lambda function triggered by objects
+landing in `RawDataBucket`, and is the more likely place for the
+masterclass' first genuine, justified cdk-nag suppression.

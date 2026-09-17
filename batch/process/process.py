@@ -56,6 +56,22 @@ def main() -> None:
     source_bucket = manifest["bucket"]
     source_key = manifest["sourceKey"]
 
+    # Defense in depth: the manifest's own content (`bucket`/`sourceKey`) is
+    # not trusted input — it's read back from an S3 object, not from the
+    # container's environment overrides. Today this bucket is the only one
+    # the job's IAM role can touch, so a mismatch can't actually reach
+    # another bucket, but if that role's permissions are ever widened this
+    # check is what stops a tampered or buggy manifest from turning this
+    # job into an arbitrary S3 reader/writer. Everything in this pipeline
+    # lives under one bucket (raw/, manifests/, processed/ are prefixes of
+    # it), so the manifest's bucket must always equal the trusted one.
+    if source_bucket != manifest_bucket:
+        raise ValueError(
+            f"Manifest bucket {source_bucket!r} does not match the trusted "
+            f"MANIFEST_BUCKET {manifest_bucket!r}; refusing to read/write "
+            "across buckets."
+        )
+
     print(f"Reading raw object s3://{source_bucket}/{source_key}")
     raw_obj = s3.get_object(Bucket=source_bucket, Key=source_key)
     body = to_json_lines(raw_obj["Body"].read())

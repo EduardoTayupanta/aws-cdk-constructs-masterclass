@@ -19,8 +19,9 @@ toolchain — a deliberate choice, discussed below.
 
 The handler itself ([`lambda/ingest/index.ts`](../lambda/ingest/index.ts))
 is deliberately narrow: for every object created under `raw/`, it writes a
-small JSON manifest (`bucket`, `key`, `size`, `eventTime`) to `manifests/`
-in the *same* bucket. It never reads the object's contents — everything it
+small JSON manifest (`bucket`, `sourceKey`, `sizeBytes`, `eventName`,
+`eventTime`) to `manifests/` in the *same* bucket. It never reads the
+object's contents — everything it
 needs is already on the S3 event record — which keeps its IAM footprint to
 exactly one action on exactly one prefix. That manifest is what Step 3
 (AWS Batch) and Step 4 (Athena) build on next.

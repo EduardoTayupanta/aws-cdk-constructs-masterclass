@@ -4,7 +4,7 @@ import { AwsSolutionsChecks } from 'cdk-nag';
 import { DataPipelineStack } from '../lib/data-pipeline-stack';
 import * as cdkJson from '../cdk.json';
 
-describe('DataPipelineStack (Steps 1-3: S3 + Lambda + Batch)', () => {
+describe('DataPipelineStack (Steps 1-4: S3 + Lambda + Batch + Athena)', () => {
   // Feature flags in cdk.json are only applied by the `cdk` CLI, never by a
   // plain `new App()` — Jest has to load them explicitly or the stack
   // behaves differently under test than it does under `cdk synth`/`deploy`.
@@ -76,7 +76,7 @@ describe('DataPipelineStack (Steps 1-3: S3 + Lambda + Batch)', () => {
     }));
   });
 
-  test('the raw data bucket notifies the ingest function for objects under raw/', () => {
+  test('the raw data bucket notifies the ingest function (and only that function) for objects under raw/', () => {
     template.hasResourceProperties('Custom::S3BucketNotifications', Match.objectLike({
       NotificationConfiguration: Match.objectLike({
         LambdaFunctionConfigurations: Match.arrayWith([
@@ -89,13 +89,20 @@ describe('DataPipelineStack (Steps 1-3: S3 + Lambda + Batch)', () => {
                 ]),
               },
             }),
+            // Pins the ARN to IngestFunction specifically — without this, a
+            // swap between IngestFunction and ProcessingTrigger's wiring
+            // below would pass just as easily, since both configurations
+            // otherwise look structurally identical.
+            LambdaFunctionArn: Match.objectLike({
+              'Fn::GetAtt': [Match.stringLikeRegexp('^IngestFunction'), 'Arn'],
+            }),
           }),
         ]),
       }),
     }));
   });
 
-  test('the raw data bucket notifies the processing trigger for objects under manifests/', () => {
+  test('the raw data bucket notifies the processing trigger (and only that function) for objects under manifests/', () => {
     template.hasResourceProperties('Custom::S3BucketNotifications', Match.objectLike({
       NotificationConfiguration: Match.objectLike({
         LambdaFunctionConfigurations: Match.arrayWith([
@@ -107,6 +114,9 @@ describe('DataPipelineStack (Steps 1-3: S3 + Lambda + Batch)', () => {
                   Match.objectLike({ Name: 'prefix', Value: 'manifests/' }),
                 ]),
               },
+            }),
+            LambdaFunctionArn: Match.objectLike({
+              'Fn::GetAtt': [Match.stringLikeRegexp('^ProcessingTrigger'), 'Arn'],
             }),
           }),
         ]),
@@ -163,6 +173,109 @@ describe('DataPipelineStack (Steps 1-3: S3 + Lambda + Batch)', () => {
           }),
         ]),
       }),
+    }));
+  });
+
+  test('the Glue table points at processed/ and reads each line as one string column', () => {
+    template.hasResourceProperties('AWS::Glue::Table', Match.objectLike({
+      DatabaseName: 'pipeline_data',
+      TableInput: Match.objectLike({
+        Name: 'processed',
+        StorageDescriptor: Match.objectLike({
+          Location: Match.objectLike({
+            'Fn::Join': Match.arrayWith([
+              Match.arrayWith([Match.stringLikeRegexp('/processed/$')]),
+            ]),
+          }),
+          Columns: [Match.objectLike({ Name: 'line', Type: 'string' })],
+        }),
+      }),
+    }));
+  });
+
+  test('the Athena workgroup enforces its configuration and encrypts query results', () => {
+    template.hasResourceProperties('AWS::Athena::WorkGroup', Match.objectLike({
+      RecursiveDeleteOption: true,
+      WorkGroupConfiguration: Match.objectLike({
+        EnforceWorkGroupConfiguration: true,
+        ResultConfiguration: Match.objectLike({
+          EncryptionConfiguration: { EncryptionOption: 'SSE_S3' },
+        }),
+      }),
+    }));
+  });
+
+  test('creates exactly one Glue database, one Glue table, and one Athena workgroup', () => {
+    template.resourceCountIs('AWS::Glue::Database', 1);
+    template.resourceCountIs('AWS::Glue::Table', 1);
+    template.resourceCountIs('AWS::Athena::WorkGroup', 1);
+  });
+
+  test('the processing job\'s VPC is single-AZ (one subnet, no HA benefit for a one-at-a-time job)', () => {
+    template.resourceCountIs('AWS::EC2::Subnet', 1);
+  });
+
+  test('the pipeline has exactly one alerts topic, encrypted with its own KMS key', () => {
+    template.resourceCountIs('AWS::SNS::Topic', 1);
+    template.hasResourceProperties('AWS::SNS::Topic', Match.objectLike({
+      KmsMasterKeyId: Match.objectLike({ 'Fn::GetAtt': Match.arrayWith([Match.stringLikeRegexp('^PipelineAlertsKey')]) }),
+    }));
+  });
+
+  test('the alerts topic policy denies publishing over an insecure transport', () => {
+    template.hasResourceProperties('AWS::SNS::TopicPolicy', Match.objectLike({
+      PolicyDocument: Match.objectLike({
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Effect: 'Deny',
+            Action: 'sns:Publish',
+            Condition: { Bool: { 'aws:SecureTransport': 'false' } },
+          }),
+        ]),
+      }),
+    }));
+  });
+
+  test('both the ingest function and the processing trigger route async-invoke failures to the alerts topic', () => {
+    template.resourceCountIs('AWS::Lambda::EventInvokeConfig', 2);
+    template.hasResourceProperties('AWS::Lambda::EventInvokeConfig', Match.objectLike({
+      FunctionName: Match.objectLike({ Ref: Match.stringLikeRegexp('^IngestFunction') }),
+      DestinationConfig: Match.objectLike({
+        OnFailure: Match.objectLike({ Destination: Match.objectLike({ Ref: Match.stringLikeRegexp('^PipelineAlerts') }) }),
+      }),
+    }));
+    template.hasResourceProperties('AWS::Lambda::EventInvokeConfig', Match.objectLike({
+      FunctionName: Match.objectLike({ Ref: Match.stringLikeRegexp('^ProcessingTrigger') }),
+      DestinationConfig: Match.objectLike({
+        OnFailure: Match.objectLike({ Destination: Match.objectLike({ Ref: Match.stringLikeRegexp('^PipelineAlerts') }) }),
+      }),
+    }));
+  });
+
+  test('an EventBridge rule routes FAILED Batch job state changes on this pipeline\'s job queue to the alerts topic', () => {
+    template.hasResourceProperties('AWS::Events::Rule', Match.objectLike({
+      EventPattern: Match.objectLike({
+        source: ['aws.batch'],
+        'detail-type': ['Batch Job State Change'],
+        detail: Match.objectLike({
+          status: ['FAILED'],
+          jobQueue: Match.arrayWith([
+            Match.objectLike({ 'Fn::GetAtt': Match.arrayWith([Match.stringLikeRegexp('^ProcessingJobJobQueue')]) }),
+          ]),
+        }),
+      }),
+      Targets: Match.arrayWith([
+        Match.objectLike({ Arn: Match.objectLike({ Ref: Match.stringLikeRegexp('^PipelineAlerts') }) }),
+      ]),
+    }));
+  });
+
+  test('exposes the processing job queue and the bucket key-prefix convention as outputs', () => {
+    template.hasOutput('ProcessingJobQueueArn', Match.objectLike({
+      Value: Match.objectLike({ 'Fn::GetAtt': Match.arrayWith([Match.stringLikeRegexp('^ProcessingJobJobQueue')]) }),
+    }));
+    template.hasOutput('BucketKeyPrefixConvention', Match.objectLike({
+      Value: Match.stringLikeRegexp('raw/.*manifests/.*processed/'),
     }));
   });
 

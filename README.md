@@ -25,7 +25,7 @@ S3  →  Lambda  →  AWS Batch (Python)  →  Athena
 | 1 | S3 | ✅ Done | [Foundational L2 usage, verified with cdk-nag](docs/02-s3-foundations.md) |
 | 2 | Lambda | ✅ Done | [Reacting to S3 events; cdk-nag's first real trade-offs](docs/03-lambda-ingest.md) |
 | 3 | AWS Batch | ✅ Done | [Fargate, VPC endpoints, and why EventBridge's Batch target isn't enough alone](docs/04-batch-processing.md) |
-| 4 | Athena | 🔜 Next | Querying pipeline output via Glue Data Catalog + Athena |
+| 4 | Athena | ✅ Done | [Glue Data Catalog + Athena over processed/, with no L2 to reach for](docs/05-athena-glue.md) |
 
 ## Tech Stack
 
@@ -116,6 +116,7 @@ name at a glance):
 | `IngestFunction` | 2 (Lambda) | `IngestFunction` |
 | `ProcessingJob` | 3 (AWS Batch) | `ProcessingJob` |
 | `ProcessingTrigger` | 3 (AWS Batch) | `ProcessingTrigger` |
+| `QueryCatalog` | 4 (Athena) | `QueryCatalog` |
 
 ## Documentation
 
@@ -129,6 +130,9 @@ name at a glance):
 - [`docs/04-batch-processing.md`](docs/04-batch-processing.md) —
   AWS Batch on Fargate, VPC endpoints instead of a NAT Gateway, and why
   EventBridge's native Batch target can't carry a triggering object's key.
+- [`docs/05-athena-glue.md`](docs/05-athena-glue.md) —
+  Glue Data Catalog + Athena over `processed/`, hand-composing L1s where
+  `aws-cdk-lib` has no L2, and why there's deliberately no Glue Crawler.
 
 More articles are added as each pipeline step is built.
 
@@ -156,7 +160,8 @@ aws-cdk-constructs-masterclass/
 │       ├── data-lake-bucket.ts         # Step 1: the S3 L2 construct
 │       ├── ingest-function.ts          # Step 2: the Lambda L2 construct
 │       ├── processing-job.ts           # Step 3: VPC + Batch (Fargate) L2 composition
-│       └── processing-trigger.ts       # Step 3: the Zip Lambda that submits Batch jobs
+│       ├── processing-trigger.ts       # Step 3: the Zip Lambda that submits Batch jobs
+│       └── query-catalog.ts            # Step 4: Glue Database/Table + Athena WorkGroup (L1s, no L2 exists)
 ├── lambda/
 │   ├── ingest/                          # Step 2: self-contained container-image Lambda
 │   │   ├── index.ts                     #   handler code

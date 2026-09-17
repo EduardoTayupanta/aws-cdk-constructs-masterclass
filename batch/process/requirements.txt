@@ -1,1 +1,15 @@
 boto3==1.42.97
+
+# Transitive dependencies of boto3==1.42.97, pinned exactly so a future
+# `pip install` can't silently resolve different versions of them. These
+# are the versions boto3's own constraints resolve to today (verified via
+# `pip download`/PyPI against the python:3.13-slim target): botocore is
+# boto3's paired release; s3transfer/jmespath/python-dateutil/urllib3/six
+# are the latest releases satisfying boto3's (and botocore's) declared
+# ranges for Python 3.13.
+botocore==1.42.97
+s3transfer==0.16.1
+jmespath==1.1.0
+python-dateutil==2.9.0.post0
+six==1.17.0
+urllib3==2.6.3

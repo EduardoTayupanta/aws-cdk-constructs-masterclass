@@ -37,6 +37,15 @@ async function submitProcessingJob(record: S3EventRecord): Promise<void> {
 
   console.log('Submitting processing job', { bucket, manifestKey });
 
+  // Accepted trade-off, not an oversight: `jobName` is a fixed string, not
+  // derived from `manifestKey`, and nothing checks for an already-running
+  // or already-completed job before calling SubmitJobCommand. S3's
+  // at-least-once event delivery (or a retried Lambda invocation) can
+  // therefore submit duplicate Batch jobs for the same manifest. This is
+  // harmless today because the job's own writes to `processed/` converge
+  // on the same output key regardless of how many times it runs — adding
+  // deterministic naming or a dedup check would be solving a problem this
+  // pipeline doesn't have yet.
   await batch.send(
     new SubmitJobCommand({
       jobName: 'process-manifest',
