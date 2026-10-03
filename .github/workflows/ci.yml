@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: the jobs only need to read the repository.
+permissions:
+  contents: read
+
+# Cancel superseded runs for the same branch / PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: CDK app + ingest Lambda (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            lambda/ingest/package-lock.json
+
+      - name: Install CDK app dependencies
+        run: npm ci
+
+      - name: Install ingest Lambda dependencies
+        run: npm ci --prefix lambda/ingest
+
+      # tsc for the CDK app + `tsc --noEmit` for lambda/ingest
+      - name: Build / typecheck
+        run: npm run build
+
+      # CDK construct tests, including cdk-nag (AWS Solutions) checks
+      - name: Test CDK app
+        run: npm test
+
+      - name: Test ingest Lambda
+        run: npm test --prefix lambda/ingest
+
+      # Synthesizes the stack; needs no AWS credentials or Docker.
+      - name: CDK synth
+        run: npx cdk synth --quiet
+
+  python:
+    name: Batch process job (Python 3.13)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: batch/process
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: batch/process/requirements-dev.txt
+
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Test with coverage
+        run: python -m pytest --cov=process --cov-report=term-missing
