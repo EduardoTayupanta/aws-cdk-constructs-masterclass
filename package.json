@@ -1,0 +1,62 @@
+{
+  "name": "aws-cdk-constructs-masterclass",
+  "version": "1.0.0",
+  "description": "A hands-on, living deep dive into AWS CDK constructs (L1/L2/L3), building a real S3 → Lambda → AWS Batch → Athena data pipeline one construct at a time, validated with cdk-nag.",
+  "private": true,
+  "license": "MIT",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build": "tsc && npm --prefix lambda/ingest run typecheck",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EduardoTayupanta/aws-cdk-constructs-masterclass.git"
+  },
+  "keywords": [
+    "aws",
+    "aws-cdk",
+    "cdk",
+    "cdk-nag",
+    "infrastructure-as-code",
+    "typescript",
+    "aws-lambda",
+    "aws-batch",
+    "amazon-athena",
+    "aws-glue",
+    "amazon-s3",
+    "data-pipeline",
+    "aws-community-builders"
+  ],
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "bugs": {
+    "url": "https://github.com/EduardoTayupanta/aws-cdk-constructs-masterclass/issues"
+  },
+  "homepage": "https://github.com/EduardoTayupanta/aws-cdk-constructs-masterclass#readme",
+  "dependencies": {
+    "@aws-sdk/client-batch": "^3.1132.0",
+    "aws-cdk-lib": "^2.269.0",
+    "cdk-nag": "^3.0.2",
+    "constructs": "^10.8.1",
+    "source-map-support": "^0.5.21"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.16.2",
+    "@swc/jest": "^0.2.39",
+    "@types/aws-lambda": "^8.10.163",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.5.1",
+    "aws-cdk": "^2.1141.0",
+    "esbuild": "^0.28.2",
+    "jest": "^30.5.1",
+    "tsx": "^4.23.13",
+    "typescript": "~7.0.2"
+  }
+}
