@@ -2,7 +2,7 @@
 
 > Part 5 of the *AWS CDK Constructs Masterclass* series.
 
-[Step 3](04-batch-processing.md) left `ProcessingJob` writing one JSON
+[Step 3](03-batch-processing.md) left `ProcessingJob` writing one JSON
 Lines object under `processed/` per raw object — deliberately schema-free,
 since `process.py` promises nothing about its rows beyond "one JSON value
 per line" (see its docstring). Step 4 closes the pipeline's loop: put a
@@ -32,7 +32,7 @@ generated L1s (`CfnDatabase`, `CfnTable`, `CfnWorkGroup`). The curated L2
 for Glue lives in a separate, still-experimental package
 (`@aws-cdk/aws-glue-alpha`) that this project doesn't depend on.
 
-[Step 0](01-cdk-constructs-and-levels.md) explained why L2s exist: sane
+[Step 0](00-cdk-constructs-and-levels.md) explained why L2s exist: sane
 defaults and a smaller surface area over a raw CloudFormation shape. That
 argument doesn't stop applying just because AWS hasn't published one yet —
 so `QueryCatalog` *is* this step's L2, in the same spirit as `DataLakeBucket`

@@ -43,7 +43,7 @@ export interface ProcessingJobProps {
  * writing S3, shipping logs — goes over VPC endpoints instead of the public
  * internet: a Gateway endpoint for S3 (free) and Interface endpoints for
  * ECR (API + Docker registry) and CloudWatch Logs. See
- * docs/04-batch-processing.md for the cost trade-off that choice implies
+ * docs/03-batch-processing.md for the cost trade-off that choice implies
  * versus a NAT Gateway or public subnets.
  */
 export class ProcessingJob extends Construct {

@@ -2,7 +2,7 @@
 
 > Part 3 of the *AWS CDK Constructs Masterclass* series.
 
-[Step 1](02-s3-foundations.md) built `RawDataBucket`, a data-lake-grade S3
+[Step 1](01-s3-foundations.md) built `RawDataBucket`, a data-lake-grade S3
 bucket, with zero cdk-nag suppressions. This step wires the pipeline's
 second stage — `S3 → Lambda` — and, as predicted at the end of that
 article, is where the masterclass hits its first **genuine, justified**
@@ -233,7 +233,7 @@ the mechanism working as intended, not a rule being "worked around."
 
 ## What's Next
 
-[Step 3](04-batch-processing.md) introduces AWS Batch — the first step
+[Step 3](03-batch-processing.md) introduces AWS Batch — the first step
 where the *application* code is Python rather than TypeScript, while the
 infrastructure defining it stays CDK/TypeScript. It processes the objects
 the manifests point to.

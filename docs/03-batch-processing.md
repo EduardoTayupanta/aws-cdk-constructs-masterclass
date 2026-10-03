@@ -2,7 +2,7 @@
 
 > Part 4 of the *AWS CDK Constructs Masterclass* series.
 
-[Step 2](03-lambda-ingest.md) left `IngestFunction` writing a small JSON
+[Step 2](02-lambda-ingest.md) left `IngestFunction` writing a small JSON
 manifest to `manifests/` for every object landing under `raw/`. This step
 closes the loop: something has to notice that manifest and actually turn
 the raw object into something queryable. That "something" is AWS Batch —
@@ -310,7 +310,7 @@ AWS-managed one) buys here. The identical finding is acknowledged on
 
 ## What's Next
 
-[Step 4](05-athena-glue.md) introduces Athena: pointing a Glue Data Catalog
+[Step 4](04-athena-glue.md) introduces Athena: pointing a Glue Data Catalog
 table at the `processed/` prefix this job now writes, and querying it
 directly with SQL — no new compute to manage, just a schema laid over
 what's already in S3.

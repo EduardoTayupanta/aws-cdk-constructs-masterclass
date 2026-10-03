@@ -27,7 +27,7 @@ export interface IngestFunctionProps {
  * the CDK app's own toolchain. `DockerImageCode.fromImageAsset()` runs
  * `docker build` on that directory during `cdk synth`/`deploy`, so a
  * Docker-compatible builder must be available wherever this stack is
- * synthesized — see docs/03-lambda-ingest.md for the operational
+ * synthesized — see docs/02-lambda-ingest.md for the operational
  * trade-offs of that choice, including cleanup (`cdk destroy` alone does
  * *not* remove the pushed image — see `cdk gc`).
  */

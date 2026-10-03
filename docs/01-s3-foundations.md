@@ -2,7 +2,7 @@
 
 > Part 2 of the *AWS CDK Constructs Masterclass* series.
 
-[Part 1](01-cdk-constructs-and-levels.md) covered *why* CDK has L1/L2/L3
+[Part 1](00-cdk-constructs-and-levels.md) covered *why* CDK has L1/L2/L3
 constructs. This part puts that theory to work: the first real piece of the
 masterclass pipeline (`S3 → Lambda → AWS Batch → Athena`) is a bucket that
 receives raw data — built as an L2 composition, and checked automatically
@@ -151,6 +151,6 @@ that ships.
 
 ## What's Next
 
-[Step 2](03-lambda-ingest.md) adds a Lambda function triggered by objects
+[Step 2](02-lambda-ingest.md) adds a Lambda function triggered by objects
 landing in `RawDataBucket`, and is the more likely place for the
 masterclass' first genuine, justified cdk-nag suppression.

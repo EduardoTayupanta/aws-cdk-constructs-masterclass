@@ -1,8 +1,7 @@
 {
   "name": "aws-cdk-constructs-masterclass",
   "version": "1.0.0",
-  "description": "A hands-on, **living** deep dive into AWS CDK constructs — what they are, why they come in levels (L1 / L2 / L3), and how to use them to build a real architecture incrementally, one construct at a time.",
-  "main": "index.js",
+  "description": "A hands-on, living deep dive into AWS CDK constructs (L1/L2/L3), building a real S3 → Lambda → AWS Batch → Athena data pipeline one construct at a time, validated with cdk-nag.",
   "private": true,
   "license": "MIT",
   "directories": {
@@ -18,8 +17,25 @@
     "type": "git",
     "url": "git+https://github.com/EduardoTayupanta/aws-cdk-constructs-masterclass.git"
   },
-  "keywords": [],
+  "keywords": [
+    "aws",
+    "aws-cdk",
+    "cdk",
+    "cdk-nag",
+    "infrastructure-as-code",
+    "typescript",
+    "aws-lambda",
+    "aws-batch",
+    "amazon-athena",
+    "aws-glue",
+    "amazon-s3",
+    "data-pipeline",
+    "aws-community-builders"
+  ],
   "type": "commonjs",
+  "engines": {
+    "node": ">=22.13"
+  },
   "bugs": {
     "url": "https://github.com/EduardoTayupanta/aws-cdk-constructs-masterclass/issues"
   },

@@ -30,7 +30,7 @@ export interface ProcessingTriggerProps {
  * `IngestFunction`'s container image — a deliberate contrast, not an
  * oversight: this handler has no unusual packaging needs (one small
  * dependency, no native modules), so Zip stays the right default. See
- * docs/03-lambda-ingest.md for when the other packaging earns its keep.
+ * docs/02-lambda-ingest.md for when the other packaging earns its keep.
  */
 export class ProcessingTrigger extends Construct {
   /** The underlying Lambda function, for wiring event sources. */

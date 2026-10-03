@@ -317,7 +317,7 @@ export class DataPipelineStack extends Stack {
     // Unlike every construct before it, QueryCatalog grants no IAM
     // permissions here: Athena queries execute as whoever calls
     // athena:StartQueryExecution, not as a role this construct owns. See
-    // docs/05-athena-glue.md for what that implies for a real query user.
+    // docs/04-athena-glue.md for what that implies for a real query user.
     new CfnOutput(this, 'GlueTableName', {
       value: `${this.queryCatalog.databaseName}.${this.queryCatalog.tableName}`,
       description: 'Glue Data Catalog table over processed/, queryable from Athena (Step 4).',

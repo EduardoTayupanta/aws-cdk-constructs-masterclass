@@ -38,7 +38,7 @@ export interface QueryCatalogProps {
  * nothing to show for it. The table instead declares a single `line`
  * string column (a field delimiter that can't occur in a JSON line keeps
  * each row intact) and queries reach into it with Presto/Trino's
- * `json_extract_scalar` — see docs/05-athena-glue.md for a worked example.
+ * `json_extract_scalar` — see docs/04-athena-glue.md for a worked example.
  */
 export class QueryCatalog extends Construct {
   /** Glue database holding `table`. */
